@@ -1,0 +1,29 @@
+name: Manual PDF Generation
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-pdf:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install LaTeX dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y texlive-latex-base texlive-latex-recommended texlive-latex-extra
+
+      - name: Compile LaTeX to PDF
+        run: |
+          # Run pdflatex twice to ensure all references are correctly generated
+          pdflatex -output-directory=report report/lab1_report.tex
+          pdflatex -output-directory=report report/lab1_report.tex
+
+      - name: Upload PDF artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: manual-report-pdf
+          path: report/lab1_report.pdf
