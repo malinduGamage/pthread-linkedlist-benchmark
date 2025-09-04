@@ -76,10 +76,10 @@ Timing measures only the $m$-operations region, not initialization.
 \toprule
 \textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
 \midrule
-1 & 0.1815 $\pm$ 0.0000 & 0.1919 $\pm$ 0.0000 & 0.2210 $\pm$ 0.0000 \\
-2 & 0.1849 $\pm$ 0.0000 & 0.2523 $\pm$ 0.0000 & 0.1579 $\pm$ 0.0000 \\
-4 & 0.1829 $\pm$ 0.0000 & 0.3796 $\pm$ 0.0000 & 0.1810 $\pm$ 0.0000 \\
-8 & 0.1780 $\pm$ 0.0000 & 0.4435 $\pm$ 0.0000 & 0.2054 $\pm$ 0.0000 \\
+1 & 0.0096 $\pm$ 0.0003 & 0.0109 $\pm$ 0.0006 & 0.0109 $\pm$ 0.0008 \\
+2 & 0.0100 $\pm$ 0.0003 & 0.0324 $\pm$ 0.0058 & 0.0132 $\pm$ 0.0008 \\
+4 & 0.0095 $\pm$ 0.0004 & 0.0304 $\pm$ 0.0007 & 0.0164 $\pm$ 0.0021 \\
+8 & 0.0100 $\pm$ 0.0005 & 0.0345 $\pm$ 0.0012 & 0.0193 $\pm$ 0.0011 \\
 \bottomrule
 \end{tabular}
 \caption{Summary of results for Case 1.}
@@ -92,10 +92,10 @@ Timing measures only the $m$-operations region, not initialization.
 \toprule
 \textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
 \midrule
-1 & 1.0639 $\pm$ 0.0000 & 1.0372 $\pm$ 0.0000 & 1.0392 $\pm$ 0.0000 \\
-2 & 1.0582 $\pm$ 0.0000 & 1.2367 $\pm$ 0.0000 & 1.1793 $\pm$ 0.0000 \\
-4 & 1.0478 $\pm$ 0.0000 & 1.5626 $\pm$ 0.0000 & 1.2864 $\pm$ 0.0000 \\
-8 & 1.0130 $\pm$ 0.0000 & 1.7605 $\pm$ 0.0000 & 1.4382 $\pm$ 0.0000 \\
+1 & 0.0197 $\pm$ 0.0005 & 0.0207 $\pm$ 0.0006 & 0.0211 $\pm$ 0.0006 \\
+2 & 0.0199 $\pm$ 0.0004 & 0.0420 $\pm$ 0.0050 & 0.0812 $\pm$ 0.0075 \\
+4 & 0.0206 $\pm$ 0.0007 & 0.0470 $\pm$ 0.0020 & 0.0925 $\pm$ 0.0100 \\
+8 & 0.0212 $\pm$ 0.0013 & 0.0510 $\pm$ 0.0028 & 0.0879 $\pm$ 0.0117 \\
 \bottomrule
 \end{tabular}
 \caption{Summary of results for Case 2.}
@@ -108,17 +108,20 @@ Timing measures only the $m$-operations region, not initialization.
 \toprule
 \textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
 \midrule
-1 & 4.4753 $\pm$ 0.0000 & 4.8215 $\pm$ 0.0000 & 4.5447 $\pm$ 0.0000 \\
-2 & 4.4604 $\pm$ 0.0000 & 5.8180 $\pm$ 0.0000 & 7.5133 $\pm$ 0.0000 \\
-4 & 4.4076 $\pm$ 0.0000 & 6.1148 $\pm$ 0.0000 & 8.8153 $\pm$ 0.0000 \\
-8 & 4.4076 $\pm$ 0.0000 & 6.3508 $\pm$ 0.0000 & 9.0376 $\pm$ 0.0000 \\
+1 & 0.0676 $\pm$ 0.0018 & 0.0664 $\pm$ 0.0022 & 0.0674 $\pm$ 0.0018 \\
+2 & 0.0644 $\pm$ 0.0018 & 0.0992 $\pm$ 0.0073 & 0.1673 $\pm$ 0.0047 \\
+4 & 0.0651 $\pm$ 0.0017 & 0.1144 $\pm$ 0.0084 & 0.1835 $\pm$ 0.0104 \\
+8 & 0.0653 $\pm$ 0.0023 & 0.1301 $\pm$ 0.0025 & 0.2136 $\pm$ 0.0107 \\
 \bottomrule
 \end{tabular}
 \caption{Summary of results for Case 3.}
 \label{tab:case3}
 \end{table}
 \paragraph{Sampling/Confidence}
-The target of a 5% relative CI was met for all configurations.
+For Case 1, the worst relative CI was 15.54%, which exceeds the 5% target.
+For Case 2, the worst relative CI was 11.67%, which exceeds the 5% target.
+For Case 3, the worst relative CI was 6.44%, which exceeds the 5% target.
+The target of a 5% relative CI was not met for one or more configurations, suggesting more samples are needed.
 \newpage
 \section*{Case Analyses with Plots}
 \subsection*{Case 1: Read-Heavy Workload}
@@ -129,9 +132,9 @@ The target of a 5% relative CI was met for all configurations.
 \label{fig:case1}
 \end{figure}
 \paragraph{Analysis}
-As shown in Table~\ref{tab:case1} and Figure~\ref{fig:case1}, at 1 thread, serial is fastest (0.1815s) vs mutex (0.1919s) and rw-lock (0.2210s).
-From 1 to 8 threads, mutex changes by 131.10% and rw-lock by -7.07%.
-At 8 threads, rw-lock is 2.16x faster than mutex.
+As shown in Table~\ref{tab:case1} and Figure~\ref{fig:case1}, at 1 thread, serial is fastest (0.0096s) vs mutex (0.0109s) and rw-lock (0.0109s).
+From 1 to 8 threads, mutex changes by 217.12% and rw-lock by 76.90%.
+At 8 threads, rw-lock is 1.79x faster than mutex.
 This workload is read-heavy (99% member operations), which explains the significant performance advantage of the rw-lock, as it allows for concurrent reads.
 \newpage
 \subsection*{Case 2: Balanced Workload}
@@ -142,9 +145,9 @@ This workload is read-heavy (99% member operations), which explains the signific
 \label{fig:case2}
 \end{figure}
 \paragraph{Analysis}
-As shown in Table~\ref{tab:case2} and Figure~\ref{fig:case2}, at 1 thread, serial is fastest (1.0639s) vs mutex (1.0372s) and rw-lock (1.0392s).
-From 1 to 8 threads, mutex changes by 69.74% and rw-lock by 38.39%.
-At 8 threads, rw-lock is 1.22x faster than mutex.
+As shown in Table~\ref{tab:case2} and Figure~\ref{fig:case2}, at 1 thread, serial is fastest (0.0197s) vs mutex (0.0207s) and rw-lock (0.0211s).
+From 1 to 8 threads, mutex changes by 146.05% and rw-lock by 317.48%.
+At 8 threads, rw-lock is 0.58x faster than mutex.
 With a higher write fraction (10%), the advantage of rw-lock diminishes. The data suggests that for this particular workload and system, the overhead of the rw-lock is greater than its benefit from concurrent reads.
 \newpage
 \subsection*{Case 3: Write-Heavy Workload}
@@ -155,9 +158,9 @@ With a higher write fraction (10%), the advantage of rw-lock diminishes. The dat
 \label{fig:case3}
 \end{figure}
 \paragraph{Analysis}
-As shown in Table~\ref{tab:case3} and Figure~\ref{fig:case3}, at 1 thread, serial is fastest (4.4753s) vs mutex (4.8215s) and rw-lock (4.5447s).
-From 1 to 8 threads, mutex changes by 31.72% and rw-lock by 98.86%.
-At 8 threads, rw-lock is 0.70x faster than mutex.
+As shown in Table~\ref{tab:case3} and Figure~\ref{fig:case3}, at 1 thread, serial is fastest (0.0676s) vs mutex (0.0664s) and rw-lock (0.0674s).
+From 1 to 8 threads, mutex changes by 95.90% and rw-lock by 216.70%.
+At 8 threads, rw-lock is 0.61x faster than mutex.
 In this write-heavy scenario (50% insert/delete), both locking strategies suffer from contention as writes are serialized. The rw-lock's performance is worse than the mutex, indicating that its more complex logic adds significant overhead that is not offset by parallelism in read operations.
 \newpage
 \begin{figure}[h!]
@@ -171,5 +174,5 @@ Results align with expectations: the serial baseline dominates at T=1 (no lock o
 Read-heavy workloads: rwlock outperforms mutex via concurrent readers.
 Write-heavier workloads: rwlock advantage shrinks; both converge due to writer serialization; parallel versions can underperform serial when contention dominates.
 Scaling saturates near core count due to contention and scheduling overhead.
-The $\pm$5% @ 95% CI target was satisfied overall.
+The $\pm$5% @ 95% CI target was not satisfied overall; it is advised to increase samples.
 \end{document}

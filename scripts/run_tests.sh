@@ -32,19 +32,19 @@ for CASE in 1 2 3; do
     # Set workload parameters for each case
     if [ "$CASE" -eq 1 ]; then
         N=1000
-        M=100000
+        M=10000
         M_MEMBER=0.99
         M_INSERT=0.005
         M_DELETE=0.005
     elif [ "$CASE" -eq 2 ]; then
         N=1000
-        M=100000
+        M=10000
         M_MEMBER=0.90
         M_INSERT=0.05
         M_DELETE=0.05
     else
         N=1000
-        M=100000
+        M=10000
         M_MEMBER=0.50
         M_INSERT=0.25
         M_DELETE=0.25
