@@ -2,30 +2,10 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
-
-// You should change these values based on your lab sheet
-#define N_INITIAL_NODES 1000
-#define TOTAL_OPERATIONS 10000
-
-// Define the fractions for each case
-// Case 1: High Member
-#define MEMBER_FRAC 0.99
-#define INSERT_FRAC 0.005
-#define DELETE_FRAC 0.005
-
-/*
-// Case 2: Balanced
-#define MEMBER_FRAC 0.90
-#define INSERT_FRAC 0.05
-#define DELETE_FRAC 0.05
-*/
-
-/*
-// Case 3: High Insert/Delete
-#define MEMBER_FRAC 0.50
-#define INSERT_FRAC 0.25
-#define DELETE_FRAC 0.25
-*/
+#include <stdatomic.h>
+#include "workload.h"
+#include "utils.h"
+#include "timing.h"
 
 // Linked list node structure
 struct list_node_s {
@@ -33,21 +13,20 @@ struct list_node_s {
     struct list_node_s* next;
 };
 
-// Global head pointer and read-write lock
-struct list_node_s* head = NULL;
-pthread_rwlock_t rwlock;
-
-// Structure to pass multiple arguments to the thread function
-struct thread_data {
-    int* operation_array;
-    long my_start;
-    long my_count;
+// Shared data structure for the threads
+struct rw_lock_data {
+    struct list_node_s* head;
+    pthread_rwlock_t rwlock;
+    long m;
+    long m_member;
+    long m_insert;
+    long m_delete;
+    // Counters for operations
+    _Atomic int tot_ops;
+    _Atomic int member_ops;
+    _Atomic int insert_ops;
+    _Atomic int delete_ops;
 };
-
-// Function to generate a random number between 0 and 2^16 - 1
-int generate_random_value() {
-    return rand() % (1 << 16);
-}
 
 // Function to check if a value is in the list
 int Member(int value, struct list_node_s** head_pp) {
@@ -134,154 +113,101 @@ int CountList(struct list_node_s* head) {
     return count;
 }
 
-// Function to generate and shuffle an array of operations based on fractions
-int* GenerateRandomOperations() {
-    int* operations = malloc(TOTAL_OPERATIONS * sizeof(int));
-    if (operations == NULL) {
-        fprintf(stderr, "Error: Memory allocation for operations array failed.\n");
-        return NULL;
-    }
-
-    int member_count = (int)(TOTAL_OPERATIONS * MEMBER_FRAC);
-    int insert_count = (int)(TOTAL_OPERATIONS * INSERT_FRAC);
-    int delete_count = (int)(TOTAL_OPERATIONS * DELETE_FRAC);
-
-    //print counts
-    printf("Operation counts - Member: %d, Insert: %d, Delete: %d\n", member_count, insert_count, delete_count);
-
-    int i, j;
-
-    // Fill the array with the correct number of each operation type
-    for (i = 0; i < member_count; i++) {
-        operations[i] = 0; // 0 for Member
-    }
-    for (j = 0; j < insert_count; j++) {
-        operations[i + j] = 1; // 1 for Insert
-    }
-    i = i + j;
-    printf("Insert count: %d\n", j);
-    for (j = 0; j < delete_count; j++) {
-        operations[i + j] = 2; // 2 for Delete
-    }
-
-    printf("Operation counts - Member: %d, Insert: %d, Delete: %d\n", member_count, insert_count, delete_count) ;
-    //print array
-    // for (i = 0; i < TOTAL_OPERATIONS; i++) {
-    //     printf("%d ", operations[i]);
-    // }
-    // printf("\n");
-
-    // Shuffle the operations array using Fisher-Yates algorithm
-    for (i = TOTAL_OPERATIONS - 1; i > 0; i--) {
-        j = rand() % (i + 1);
-        int temp = operations[i];
-        operations[i] = operations[j];
-        operations[j] = temp;
-    }
-
-    return operations;
-}
-
-
-// Thread work function
 void* Thread_work(void* data_ptr) {
-    struct thread_data* data = (struct thread_data*)data_ptr;
-    long i;
-    int value;
+    struct rw_lock_data* data = (struct rw_lock_data*)data_ptr;
+    unsigned int seed = (unsigned int) time(NULL) ^ (unsigned int) pthread_self();
 
-    for (i = 0; i < data->my_count; i++) {
-        int op = data->operation_array[data->my_start + i];
-        value = generate_random_value();
+    while (atomic_load(&data->tot_ops) < data->m) {
+        int op_type = rand_r(&seed) % 3;
+        int value = rand_r(&seed) % (1 << 16);
 
-        switch (op) {
-            case 0: // Member
-                pthread_rwlock_rdlock(&rwlock);
-                Member(value, &head);
-                pthread_rwlock_unlock(&rwlock);
-                break;
-            case 1: // Insert
-                pthread_rwlock_wrlock(&rwlock);
-                do {
-                    value = generate_random_value();
-                } while (Insert(value, &head) == 0);
-                pthread_rwlock_unlock(&rwlock);
-                break;
-            case 2: // Delete
-                pthread_rwlock_wrlock(&rwlock);
-                Delete(value, &head);
-                pthread_rwlock_unlock(&rwlock);
-                break;
+        if (op_type == 0) { // Member
+            if (atomic_load(&data->member_ops) < data->m_member) {
+                pthread_rwlock_rdlock(&data->rwlock);
+                Member(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->member_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
+        } else if (op_type == 1) { // Insert
+            if (atomic_load(&data->insert_ops) < data->m_insert) {
+                pthread_rwlock_wrlock(&data->rwlock);
+                Insert(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->insert_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
+        } else { // Delete
+            if (atomic_load(&data->delete_ops) < data->m_delete) {
+                pthread_rwlock_wrlock(&data->rwlock);
+                Delete(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->delete_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
         }
     }
-    free(data);
     return NULL;
 }
 
 int main(int argc, char* argv[]) {
-    long i;
-    int value;
-    clock_t start_time, end_time;
-    double elapsed_time;
-    pthread_t* thread_handles;
-
-    if (argc != 2) {
-        fprintf(stderr, "Usage: %s <num_threads>\n", argv[0]);
+    if (argc != 7) {
+        fprintf(stderr, "Usage: %s <num_threads> <n_initial_nodes> <n_total_operations> <member_frac> <insert_frac> <delete_frac>\n", argv[0]);
         return 1;
     }
+
     long num_threads = strtol(argv[1], NULL, 10);
+    int n_initial_nodes = atoi(argv[2]);
+    int n_total_operations = atoi(argv[3]);
+    double member_frac = atof(argv[4]);
+    double insert_frac = atof(argv[5]);
+    double delete_frac = atof(argv[6]);
+
     if (num_threads <= 0 || num_threads > 8) {
         fprintf(stderr, "Number of threads must be between 1 and 8.\n");
         return 1;
     }
-    thread_handles = malloc(num_threads * sizeof(pthread_t));
+
+    struct rw_lock_data shared_data;
+    shared_data.head = NULL;
+    shared_data.m = n_total_operations;
+    shared_data.m_member = (long)(n_total_operations * member_frac);
+    shared_data.m_insert = (long)(n_total_operations * insert_frac);
+    shared_data.m_delete = (long)(n_total_operations * delete_frac);
+    shared_data.tot_ops = 0;
+    shared_data.member_ops = 0;
+    shared_data.insert_ops = 0;
+    shared_data.delete_ops = 0;
 
     srand(time(NULL));
-
-    for (i = 0; i < N_INITIAL_NODES; i++) {
-        do {
-            value = generate_random_value();
-        } while (Insert(value, &head) == 0);
+    int inserted_count = 0;
+    while (inserted_count < n_initial_nodes) {
+        int value = generate_random_value();
+        if (Insert(value, &shared_data.head)) {
+            inserted_count++;
+        }
     }
 
-    pthread_rwlock_init(&rwlock, NULL);
+    pthread_rwlock_init(&shared_data.rwlock, NULL);
+    pthread_t* thread_handles = malloc(num_threads * sizeof(pthread_t));
 
-    // Generate and shuffle the operations array once
-    int* operation_order = GenerateRandomOperations();
-    if (operation_order == NULL) {
-        return 1;
-    }
+    time_start();
 
-    long ops_per_thread = TOTAL_OPERATIONS / num_threads;
-    long my_start, my_count;
-
-    start_time = clock();
-
+    long i;
     for (i = 0; i < num_threads; i++) {
-        my_start = i * ops_per_thread;
-        my_count = (i == num_threads - 1) ? TOTAL_OPERATIONS - my_start : ops_per_thread;
-
-        struct thread_data* data = malloc(sizeof(struct thread_data));
-        data->operation_array = operation_order;
-        data->my_start = my_start;
-        data->my_count = my_count;
-        
-        pthread_create(&thread_handles[i], NULL, Thread_work, (void*)data);
+        pthread_create(&thread_handles[i], NULL, Thread_work, (void*)&shared_data);
     }
 
     for (i = 0; i < num_threads; i++) {
         pthread_join(thread_handles[i], NULL);
     }
 
-    end_time = clock();
-    elapsed_time = (double)(end_time - start_time) / CLOCKS_PER_SEC;
+    double elapsed_time = time_stop();
+    printf("%.6f\n", elapsed_time);
 
-    printf("Read-Write Lock Linked List (%ld threads): Elapsed time = %.6f seconds\n", num_threads, elapsed_time);
-    printf("Final list count: %d\n", CountList(head));
-
-    FreeList(&head);
-    pthread_rwlock_destroy(&rwlock);
+    FreeList(&shared_data.head);
+    pthread_rwlock_destroy(&shared_data.rwlock);
     free(thread_handles);
-    free(operation_order);
 
     return 0;
 }

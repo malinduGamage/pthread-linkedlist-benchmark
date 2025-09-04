@@ -48,6 +48,10 @@ lab1_linkedlist/
   ```bash
   pip install pandas matplotlib
   ```
+- **LaTeX** for PDF report generation. On Debian/Ubuntu, you can install the necessary packages with:
+  ```bash
+  sudo apt-get install texlive-base texlive-latex-recommended texlive-latex-extra texlive-fonts-recommended
+  ```
 
 ## Build, Run, and Analyze
 

@@ -32,6 +32,7 @@ pdf: $(PDF_OUT)
 
 $(PDF_OUT): $(TEX_OUT)
 	pdflatex -output-directory=report $(TEX_OUT)
+	pdflatex -output-directory=report $(TEX_OUT)
 
 clean:
 	$(MAKE) -C src clean || true

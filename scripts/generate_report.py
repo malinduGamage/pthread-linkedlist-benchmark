@@ -14,7 +14,7 @@ def get_system_specs():
     # 1) Use data/specs.txt if present
     try:
         with open("data/specs.txt", "r") as f:
-            return f.read()
+            return {"raw": f.read()}
     except FileNotFoundError:
         pass
 
@@ -76,11 +76,6 @@ def get_system_specs():
     l2  = lscpu_field("L2 cache")
     l3  = lscpu_field("L3 cache")
 
-    # Governor / Turbo (if available)
-    governor = read_first_match("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor")
-    no_turbo = read_first_match("/sys/devices/system/cpu/intel_pstate/no_turbo")
-    turbo_state = {"0": "on", "1": "off"}.get(no_turbo, "")
-
     # ---- Memory / NUMA / THP ----
     mem_kb = ""
     try:
@@ -109,16 +104,6 @@ def get_system_specs():
     except Exception:
         pass
 
-    # ---- Virtualization / Steal time ----
-    virt = sh("systemd-detect-virt 2>/dev/null") or ""
-    steal = ""
-    vmstat_line = sh("vmstat 1 3 | tail -1")
-    if vmstat_line:
-        parts = vmstat_line.split()
-        # vmstat cols: ...  id   wa   st (st = steal)
-        if len(parts) >= 17:
-            steal = parts[-1] + "%"
-
     # ---- OS / Kernel ----
     os_name = ""
     try:
@@ -143,51 +128,44 @@ def get_system_specs():
     mpl_ver    = sh("python3 -c 'import matplotlib as m; print(m.__version__)'") if shutil.which("python3") else ""
 
     # ---- Compose formatted report ----
-    lines = []
-    lines.append("System Information (Extended)")
-    lines.append("CPU")
-    lines.append(f"• Model: {cpu_model or 'N/A'}")
-    if vendor or arch:   lines.append(f"• Vendor/Arch: {vendor or 'N/A'} / {arch or 'N/A'}")
-    if cpu_mhz:          lines.append(f"• Reported MHz: {cpu_mhz}")
-    lines.append(f"• Physical cores: {phys_cores}")
-    lines.append(f"• Threads per core: {threads_per_core or 'N/A'}")
+    specs = {
+        "CPU": [],
+        "Memory / NUMA": [],
+        "Operating System": [],
+        "Toolchain": []
+    }
+
+    specs["CPU"].append(f"Model: {cpu_model or 'N/A'}")
+    if vendor or arch:   specs["CPU"].append(f"Vendor/Arch: {vendor or 'N/A'} / {arch or 'N/A'}")
+    if cpu_mhz:          specs["CPU"].append(f"Reported MHz: {cpu_mhz}")
+    specs["CPU"].append(f"Physical cores: {phys_cores}")
+    specs["CPU"].append(f"Threads per core: {threads_per_core or 'N/A'}")
     if l1i or l1d or l2 or l3:
-        lines.append(f"• Caches: L1i {l1i or 'N/A'}, L1d {l1d or 'N/A'}, L2 {l2 or 'N/A'}, L3 {l3 or 'N/A'}")
+        cache_items = []
+        if l1i: cache_items.append(f"L1i: {l1i}")
+        if l1d: cache_items.append(f"L1d: {l1d}")
+        if l2:  cache_items.append(f"L2:  {l2}")
+        if l3:  cache_items.append(f"L3:  {l3}")
+        specs["CPU"].append(["Caches:", cache_items])
 
-    lines.append("")
-    lines.append("Memory / NUMA")
-    lines.append(f"• Total (kB): {mem_kb or 'N/A'}")
-    lines.append(f"• NUMA nodes: {numa_nodes or 'N/A'}")
-    lines.append(f"• THP: {thp or 'N/A'}")
-    lines.append(f"• Swap total (kB): {swap_total or 'N/A'}")
+    specs["Memory / NUMA"].append(f"Total (kB): {mem_kb or 'N/A'}")
+    specs["Memory / NUMA"].append(f"NUMA nodes: {numa_nodes or 'N/A'}")
+    specs["Memory / NUMA"].append(f"THP: {thp or 'N/A'}")
+    specs["Memory / NUMA"].append(f"Swap total (kB): {swap_total or 'N/A'}")
 
-    lines.append("")
-    lines.append("CPU Frequency / Power")
-    lines.append(f"• Governor: {governor or 'N/A'}")
-    if turbo_state: lines.append(f"• Turbo: {turbo_state}")
+    specs["Operating System"].append(f"Distro: {os_name or 'N/A'}")
+    specs["Operating System"].append(f"Kernel: {kernel or 'N/A'}")
+    specs["Operating System"].append(f"Logical CPUs: {logical_cpus or 'N/A'}")
 
-    lines.append("")
-    lines.append("Virtualization")
-    lines.append(f"• Platform: {virt or 'bare metal / unknown'}")
-    if steal: lines.append(f"• Steal time (vmstat sample): {steal}")
+    specs["Toolchain"].append(f"Compiler: {gcc_ver or 'N/A'}")
+    if make_ver:   specs["Toolchain"].append(f"make: {make_ver}")
+    if glibc_ver:  specs["Toolchain"].append(f"glibc: {glibc_ver}")
+    if nptl_ver:   specs["Toolchain"].append(f"libpthread (NPTL): {nptl_ver}")
+    if python_ver: specs["Toolchain"].append(f"Python: {python_ver}")
+    if pandas_ver: specs["Toolchain"].append(f"pandas: {pandas_ver}")
+    if mpl_ver:    specs["Toolchain"].append(f"matplotlib: {mpl_ver}")
 
-    lines.append("")
-    lines.append("Operating System")
-    lines.append(f"• Distro: {os_name or 'N/A'}")
-    lines.append(f"• Kernel: {kernel or 'N/A'}")
-    lines.append(f"• Logical CPUs: {logical_cpus or 'N/A'}")
-
-    lines.append("")
-    lines.append("Toolchain")
-    lines.append(f"• Compiler: {gcc_ver or 'N/A'}")
-    if make_ver:   lines.append(f"• make: {make_ver}")
-    if glibc_ver:  lines.append(f"• glibc: {glibc_ver}")
-    if nptl_ver:   lines.append(f"• libpthread (NPTL): {nptl_ver}")
-    if python_ver: lines.append(f"• Python: {python_ver}")
-    if pandas_ver: lines.append(f"• pandas: {pandas_ver}")
-    if mpl_ver:    lines.append(f"• matplotlib: {mpl_ver}")
-
-    return "\n".join(lines)
+    return specs
 
 def load_data():
     data = {'summaries': {}, 'raws': {}}
@@ -242,24 +220,64 @@ def fmt(val, p=2):
     return f"{val:.{p}f}" if not pd.isna(val) else "---"
 
 def generate_page1(specs):
+    # Handle the case where specs are read from a file
+    if "raw" in specs:
+        system_info = f"\\begin{{verbatim}}\n{specs['raw']}\n\\end{{verbatim}}"
+    else:
+        # Format the specs dictionary into a two-column layout
+        col1_keys = ["CPU", "Memory / NUMA"]
+        col2_keys = ["Operating System", "Toolchain"]
+        
+        def format_section(title, items):
+            item_list_parts = []
+            for item in items:
+                if isinstance(item, list):
+                    nested_header = item[0]
+                    nested_items = "\n".join([f"    \\item {i.replace('_', '-')}" for i in item[1]])
+                    item_list_parts.append(f"  \\item {nested_header}\n  \\begin{{itemize}}[noitemsep,topsep=0pt,leftmargin=*]\n{nested_items}\n  \\end{{itemize}}")
+                else:
+                    item_list_parts.append(f"  \\item {item.replace('_', '-')}")
+            item_list = "\n".join(item_list_parts)
+            return f"\\subsection*{{{title}}}\n\\begin{{itemize}}[noitemsep,topsep=0pt]\n{item_list}\n\\end{{itemize}}"
+
+        col1_content = "\n".join([format_section(k, specs[k]) for k in col1_keys if k in specs])
+        col2_content = "\n".join([format_section(k, specs[k]) for k in col2_keys if k in specs])
+
+        system_info = f"""\\noindent
+\\begin{{minipage}}[t]{{0.48\\textwidth}}
+{col1_content}
+\\end{{minipage}}
+\\hfill
+\\begin{{minipage}}[t]{{0.48\\textwidth}}
+{col2_content}
+\\end{{minipage}}"""
+
     return f"""\\documentclass{{article}}
-\\usepackage{{graphicx,booktabs,geometry,amsmath}}
+\\usepackage{{graphicx,booktabs,geometry,amsmath,enumitem}}
 \\geometry{{a4paper,margin=1in}}
-\\title{{Pthread Linked List Benchmark (Lab 1 -- CS4532)}}
-\\author{{<Your names / index numbers>}}
+\\title{{CS4532 Concurrent Programming \\\\ \\large Take-Home Lab 1}}
+\\author{{Fernando T.H.L (210167E) \\\\ Gamage M.S (210176G)}}
 \\date{{\\today}}
 \\begin{{document}}
 \\maketitle
 \\section*{{System Information}}
-\\begin{{verbatim}}
-{specs}
-\\end{{verbatim}}
+{system_info}
 \\section*{{Approach}}
-Linked list with Member, Insert (unique), Delete.
-Three variants: serial; pthreads + single mutex; pthreads + single rwlock.
-Initialization: n=1000 unique keys in [0, $2^{{16}}-1$].
-Workloads: m=10000 ops with given fractions, distributed across $T \\in \\{{1,2,4,8\\}}$ threads.
-Timing measures only the m-ops region, not initialization.
+We implemented a singly linked list supporting:
+\\begin{{itemize}}[noitemsep,topsep=0pt]
+  \\item \\texttt{{Member}}
+  \\item \\texttt{{Insert}} (unique keys only)
+  \\item \\texttt{{Delete}}
+\\end{{itemize}}
+Three variants were tested:
+\\begin{{itemize}}[noitemsep,topsep=0pt]
+  \\item Serial (no locks)
+  \\item Pthreads + single mutex
+  \\item Pthreads + single read--write lock
+\\end{{itemize}}
+Initialization: $n=1000$ unique keys in $[0, 2^{{16}}-1]$.
+Workloads: $m=10000$ operations with given fractions, distributed across $T \\in \\{{1,2,4,8\\}}$ threads.
+Timing measures only the $m$-operations region, not initialization.
 \\newpage
 """
 
@@ -277,14 +295,14 @@ def generate_page2(data, metrics):
             content.append("Data not available for this case.\\\\")
             continue
         table = ["\\begin{table}[h!]", "\\centering", "\\begin{tabular}{cccc}", "\\toprule",
-                 "\\textbf{Threads} & \\textbf{Serial (s)} & \\textbf{Mutex (s)} & \\textbf{RW-lock (s)} \\\\", "\\midrule"]
+                 "\\textbf{Threads} & \\textbf{Serial (µs)} & \\textbf{Mutex (µs)} & \\textbf{RW-lock (µs)} \\\\", "\\midrule"]
         for t in sorted(summary_df['threads'].unique()):
             row = [str(t)]
             for impl in ['serial', 'mutex', 'rwlock']:
                 d = summary_df[(summary_df['implementation'] == impl) & (summary_df['threads'] == t)]
                 if not d.empty:
-                    avg, std = d['average'].iloc[0], d['stddev'].iloc[0]
-                    row.append(f"{fmt(avg, 4)} $\\pm$ {fmt(std, 4)}")
+                    avg, std = d['average'].iloc[0] * 1_000_000, d['stddev'].iloc[0] * 1_000_000
+                    row.append(f"{fmt(avg, 2)} $\\pm$ {fmt(std, 2)}")
                 else:
                     row.append("---")
             table.append(" & ".join(row) + " \\\\")
@@ -318,7 +336,7 @@ def generate_case_analysis_section(case_num, metrics):
         return "\n".join(content)
     analysis = [
         "\\paragraph{Analysis}",
-        f"As shown in Table~\\ref{{tab:case{case_num}}} and Figure~\\ref{{fig:case{case_num}}}, at 1 thread, serial is fastest ({fmt(m['s1_avg'], 4)}s) vs mutex ({fmt(m['m1_avg'], 4)}s) and rw-lock ({fmt(m['r1_avg'], 4)}s).",
+        f"As shown in Table~\\ref{{tab:case{case_num}}} and Figure~\\ref{{fig:case{case_num}}}, at 1 thread, serial is fastest ({fmt(m['s1_avg'] * 1_000_000, 2)}µs) vs mutex ({fmt(m['m1_avg'] * 1_000_000, 2)}µs) and rw-lock ({fmt(m['r1_avg'] * 1_000_000, 2)}µs).",
         f"From 1 to 8 threads, mutex changes by {fmt(m['mutex_scaling'])}% and rw-lock by {fmt(m['rwlock_scaling'])}%.",
         f"At 8 threads, rw-lock is {fmt(m['speedup_t8'])}x faster than mutex.",
         workload_insights[case_num-1]
