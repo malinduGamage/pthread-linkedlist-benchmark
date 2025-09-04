@@ -1,13 +1,16 @@
 
+#include <time.h>
 #include "timing.h"
 
-double timespec_elapsed(const struct timespec *start,
-                        const struct timespec *end)
-{
-    if (!start || !end) {
-        return 0.0;
-    }
-    double secs = (double)(end->tv_sec - start->tv_sec);
-    double nsecs = (double)(end->tv_nsec - start->tv_nsec) / 1e9;
-    return secs + nsecs;
+static struct timespec start_time;
+
+void time_start(void) {
+    clock_gettime(CLOCK_MONOTONIC, &start_time);
+}
+
+double time_stop(void) {
+    struct timespec end_time;
+    clock_gettime(CLOCK_MONOTONIC, &end_time);
+    return (end_time.tv_sec - start_time.tv_sec) +
+           (end_time.tv_nsec - start_time.tv_nsec) / 1e9;
 }
