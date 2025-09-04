@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <time.h>
 #include <pthread.h>
+#include <stdatomic.h>
 #include "workload.h"
 #include "utils.h"
 #include "timing.h"
@@ -12,15 +13,19 @@ struct list_node_s {
     struct list_node_s* next;
 };
 
-// Global head pointer and read-write lock
-struct list_node_s* head = NULL;
-pthread_rwlock_t rwlock;
-
-// Structure to pass multiple arguments to the thread function
-struct thread_data {
-    operation_t* operations;
-    long my_start;
-    long my_count;
+// Shared data structure for the threads
+struct rw_lock_data {
+    struct list_node_s* head;
+    pthread_rwlock_t rwlock;
+    long m;
+    long m_member;
+    long m_insert;
+    long m_delete;
+    // Counters for operations
+    _Atomic int tot_ops;
+    _Atomic int member_ops;
+    _Atomic int insert_ops;
+    _Atomic int delete_ops;
 };
 
 // Function to check if a value is in the list
@@ -108,33 +113,40 @@ int CountList(struct list_node_s* head) {
     return count;
 }
 
-// Thread work function
 void* Thread_work(void* data_ptr) {
-    struct thread_data* data = (struct thread_data*)data_ptr;
-    long i;
+    struct rw_lock_data* data = (struct rw_lock_data*)data_ptr;
+    unsigned int seed = (unsigned int) time(NULL) ^ (unsigned int) pthread_self();
 
-    for (i = 0; i < data->my_count; i++) {
-        operation_t op = data->operations[data->my_start + i];
+    while (atomic_load(&data->tot_ops) < data->m) {
+        int op_type = rand_r(&seed) % 3;
+        int value = rand_r(&seed) % (1 << 16);
 
-        switch (op.type) {
-            case OP_MEMBER:
-                pthread_rwlock_rdlock(&rwlock);
-                Member(op.key, &head);
-                pthread_rwlock_unlock(&rwlock);
-                break;
-            case OP_INSERT:
-                pthread_rwlock_wrlock(&rwlock);
-                Insert(op.key, &head);
-                pthread_rwlock_unlock(&rwlock);
-                break;
-            case OP_DELETE:
-                pthread_rwlock_wrlock(&rwlock);
-                Delete(op.key, &head);
-                pthread_rwlock_unlock(&rwlock);
-                break;
+        if (op_type == 0) { // Member
+            if (atomic_load(&data->member_ops) < data->m_member) {
+                pthread_rwlock_rdlock(&data->rwlock);
+                Member(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->member_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
+        } else if (op_type == 1) { // Insert
+            if (atomic_load(&data->insert_ops) < data->m_insert) {
+                pthread_rwlock_wrlock(&data->rwlock);
+                Insert(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->insert_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
+        } else { // Delete
+            if (atomic_load(&data->delete_ops) < data->m_delete) {
+                pthread_rwlock_wrlock(&data->rwlock);
+                Delete(value, &data->head);
+                pthread_rwlock_unlock(&data->rwlock);
+                atomic_fetch_add(&data->delete_ops, 1);
+                atomic_fetch_add(&data->tot_ops, 1);
+            }
         }
     }
-    free(data);
     return NULL;
 }
 
@@ -156,57 +168,46 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    long i;
-    int value;
-    double elapsed_time;
-    pthread_t* thread_handles;
-
-    thread_handles = malloc(num_threads * sizeof(pthread_t));
+    struct rw_lock_data shared_data;
+    shared_data.head = NULL;
+    shared_data.m = n_total_operations;
+    shared_data.m_member = (long)(n_total_operations * member_frac);
+    shared_data.m_insert = (long)(n_total_operations * insert_frac);
+    shared_data.m_delete = (long)(n_total_operations * delete_frac);
+    shared_data.tot_ops = 0;
+    shared_data.member_ops = 0;
+    shared_data.insert_ops = 0;
+    shared_data.delete_ops = 0;
 
     srand(time(NULL));
-
-    for (i = 0; i < n_initial_nodes; i++) {
-        do {
-            value = generate_random_value();
-        } while (Insert(value, &head) == 0);
+    int inserted_count = 0;
+    while (inserted_count < n_initial_nodes) {
+        int value = generate_random_value();
+        if (Insert(value, &shared_data.head)) {
+            inserted_count++;
+        }
     }
 
-    pthread_rwlock_init(&rwlock, NULL);
-
-    operation_t* operations = generate_operations(n_total_operations, member_frac, insert_frac, delete_frac);
-    if (operations == NULL) {
-        return 1;
-    }
-
-    long ops_per_thread = n_total_operations / num_threads;
-    long my_start, my_count;
+    pthread_rwlock_init(&shared_data.rwlock, NULL);
+    pthread_t* thread_handles = malloc(num_threads * sizeof(pthread_t));
 
     time_start();
 
+    long i;
     for (i = 0; i < num_threads; i++) {
-        my_start = i * ops_per_thread;
-        my_count = (i == num_threads - 1) ? n_total_operations - my_start : ops_per_thread;
-
-        struct thread_data* data = malloc(sizeof(struct thread_data));
-        data->operations = operations;
-        data->my_start = my_start;
-        data->my_count = my_count;
-        
-        pthread_create(&thread_handles[i], NULL, Thread_work, (void*)data);
+        pthread_create(&thread_handles[i], NULL, Thread_work, (void*)&shared_data);
     }
 
     for (i = 0; i < num_threads; i++) {
         pthread_join(thread_handles[i], NULL);
     }
 
-    elapsed_time = time_stop();
-
+    double elapsed_time = time_stop();
     printf("%.6f\n", elapsed_time);
 
-    FreeList(&head);
-    pthread_rwlock_destroy(&rwlock);
+    FreeList(&shared_data.head);
+    pthread_rwlock_destroy(&shared_data.rwlock);
     free(thread_handles);
-    free_operations(operations);
 
     return 0;
 }
