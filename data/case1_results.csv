@@ -1,0 +1,13 @@
+implementation,threads,time
+serial,1,0.181525
+serial,2,0.184853
+serial,4,0.182857
+serial,8,0.177997
+mutex,1,0.191907
+mutex,2,0.252344
+mutex,4,0.379641
+mutex,8,0.443505
+rwlock,1,0.220997
+rwlock,2,0.157872
+rwlock,4,0.181017
+rwlock,8,0.205366

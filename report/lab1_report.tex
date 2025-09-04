@@ -1,0 +1,175 @@
+\documentclass{article}
+\usepackage{graphicx,booktabs,geometry,amsmath,enumitem}
+\geometry{a4paper,margin=1in}
+\title{CS4532 Concurrent Programming \\ \large Take-Home Lab 1}
+\author{Fernando T.H.L (210167E) \\ Gamage M.S (210176G)}
+\date{\today}
+\begin{document}
+\maketitle
+\section*{System Information}
+\noindent
+\begin{minipage}[t]{0.48\textwidth}
+\subsection*{CPU}
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item Model: Intel(R) Xeon(R) Processor @ 2.30GHz
+  \item Vendor/Arch: GenuineIntel / x86-64
+  \item Physical cores: 4
+  \item Threads per core: 1
+  \item Caches:
+  \begin{itemize}[noitemsep,topsep=0pt,leftmargin=*]
+    \item L1i: 128 KiB (4 instances)
+    \item L1d: 128 KiB (4 instances)
+    \item L2:  1 MiB (4 instances)
+    \item L3:  45 MiB (1 instance)
+  \end{itemize}
+\end{itemize}
+\subsection*{Memory / NUMA}
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item Total (kB): 8150140
+  \item NUMA nodes: 1
+  \item THP: madvise
+  \item Swap total (kB): 0
+\end{itemize}
+\end{minipage}
+\hfill
+\begin{minipage}[t]{0.48\textwidth}
+\subsection*{Operating System}
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item Distro: Ubuntu 24.04.2 LTS
+  \item Kernel: 6.8.0
+  \item Logical CPUs: 4
+\end{itemize}
+\subsection*{Toolchain}
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item Compiler: gcc (Ubuntu 13.3.0-6ubuntu2~24.04) 13.3.0
+  \item make: GNU Make 4.3
+  \item glibc: glibc 2.39
+  \item libpthread (NPTL): NPTL 2.39
+  \item Python: 3.12.11
+  \item pandas: 2.3.2
+  \item matplotlib: 3.10.6
+\end{itemize}
+\end{minipage}
+\section*{Approach}
+We implemented a singly linked list supporting:
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item \texttt{Member}
+  \item \texttt{Insert} (unique keys only)
+  \item \texttt{Delete}
+\end{itemize}
+Three variants were tested:
+\begin{itemize}[noitemsep,topsep=0pt]
+  \item Serial (no locks)
+  \item Pthreads + single mutex
+  \item Pthreads + single read--write lock
+\end{itemize}
+Initialization: $n=1000$ unique keys in $[0, 2^{16}-1]$.
+Workloads: $m=10000$ operations with given fractions, distributed across $T \in \{1,2,4,8\}$ threads.
+Timing measures only the $m$-operations region, not initialization.
+\newpage
+
+\section*{Experiment Report (Overview Tables)}
+\subsection*{Case 1: n=1000, m=10000, m\_member=0.99, m\_insert=0.005, m\_delete=0.005}
+\begin{table}[h!]
+\centering
+\begin{tabular}{cccc}
+\toprule
+\textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
+\midrule
+1 & 0.1815 $\pm$ 0.0000 & 0.1919 $\pm$ 0.0000 & 0.2210 $\pm$ 0.0000 \\
+2 & 0.1849 $\pm$ 0.0000 & 0.2523 $\pm$ 0.0000 & 0.1579 $\pm$ 0.0000 \\
+4 & 0.1829 $\pm$ 0.0000 & 0.3796 $\pm$ 0.0000 & 0.1810 $\pm$ 0.0000 \\
+8 & 0.1780 $\pm$ 0.0000 & 0.4435 $\pm$ 0.0000 & 0.2054 $\pm$ 0.0000 \\
+\bottomrule
+\end{tabular}
+\caption{Summary of results for Case 1.}
+\label{tab:case1}
+\end{table}
+\subsection*{Case 2: n=1000, m=10000, m\_member=0.90, m\_insert=0.05, m\_delete=0.05}
+\begin{table}[h!]
+\centering
+\begin{tabular}{cccc}
+\toprule
+\textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
+\midrule
+1 & 1.0639 $\pm$ 0.0000 & 1.0372 $\pm$ 0.0000 & 1.0392 $\pm$ 0.0000 \\
+2 & 1.0582 $\pm$ 0.0000 & 1.2367 $\pm$ 0.0000 & 1.1793 $\pm$ 0.0000 \\
+4 & 1.0478 $\pm$ 0.0000 & 1.5626 $\pm$ 0.0000 & 1.2864 $\pm$ 0.0000 \\
+8 & 1.0130 $\pm$ 0.0000 & 1.7605 $\pm$ 0.0000 & 1.4382 $\pm$ 0.0000 \\
+\bottomrule
+\end{tabular}
+\caption{Summary of results for Case 2.}
+\label{tab:case2}
+\end{table}
+\subsection*{Case 3: n=1000, m=10000, m\_member=0.50, m\_insert=0.25, m\_delete=0.25}
+\begin{table}[h!]
+\centering
+\begin{tabular}{cccc}
+\toprule
+\textbf{Threads} & \textbf{Serial (s)} & \textbf{Mutex (s)} & \textbf{RW-lock (s)} \\
+\midrule
+1 & 4.4753 $\pm$ 0.0000 & 4.8215 $\pm$ 0.0000 & 4.5447 $\pm$ 0.0000 \\
+2 & 4.4604 $\pm$ 0.0000 & 5.8180 $\pm$ 0.0000 & 7.5133 $\pm$ 0.0000 \\
+4 & 4.4076 $\pm$ 0.0000 & 6.1148 $\pm$ 0.0000 & 8.8153 $\pm$ 0.0000 \\
+8 & 4.4076 $\pm$ 0.0000 & 6.3508 $\pm$ 0.0000 & 9.0376 $\pm$ 0.0000 \\
+\bottomrule
+\end{tabular}
+\caption{Summary of results for Case 3.}
+\label{tab:case3}
+\end{table}
+\paragraph{Sampling/Confidence}
+The target of a 5% relative CI was met for all configurations.
+\newpage
+\section*{Case Analyses with Plots}
+\subsection*{Case 1: Read-Heavy Workload}
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.9\textwidth]{report/graphs/case1_plot.png}
+\caption{Average time vs. threads for Case 1.}
+\label{fig:case1}
+\end{figure}
+\paragraph{Analysis}
+As shown in Table~\ref{tab:case1} and Figure~\ref{fig:case1}, at 1 thread, serial is fastest (0.1815s) vs mutex (0.1919s) and rw-lock (0.2210s).
+From 1 to 8 threads, mutex changes by 131.10% and rw-lock by -7.07%.
+At 8 threads, rw-lock is 2.16x faster than mutex.
+This workload is read-heavy (99% member operations), which explains the significant performance advantage of the rw-lock, as it allows for concurrent reads.
+\newpage
+\subsection*{Case 2: Balanced Workload}
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.9\textwidth]{report/graphs/case2_plot.png}
+\caption{Average time vs. threads for Case 2.}
+\label{fig:case2}
+\end{figure}
+\paragraph{Analysis}
+As shown in Table~\ref{tab:case2} and Figure~\ref{fig:case2}, at 1 thread, serial is fastest (1.0639s) vs mutex (1.0372s) and rw-lock (1.0392s).
+From 1 to 8 threads, mutex changes by 69.74% and rw-lock by 38.39%.
+At 8 threads, rw-lock is 1.22x faster than mutex.
+With a higher write fraction (10%), the advantage of rw-lock diminishes. The data suggests that for this particular workload and system, the overhead of the rw-lock is greater than its benefit from concurrent reads.
+\newpage
+\subsection*{Case 3: Write-Heavy Workload}
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.9\textwidth]{report/graphs/case3_plot.png}
+\caption{Average time vs. threads for Case 3.}
+\label{fig:case3}
+\end{figure}
+\paragraph{Analysis}
+As shown in Table~\ref{tab:case3} and Figure~\ref{fig:case3}, at 1 thread, serial is fastest (4.4753s) vs mutex (4.8215s) and rw-lock (4.5447s).
+From 1 to 8 threads, mutex changes by 31.72% and rw-lock by 98.86%.
+At 8 threads, rw-lock is 0.70x faster than mutex.
+In this write-heavy scenario (50% insert/delete), both locking strategies suffer from contention as writes are serialized. The rw-lock's performance is worse than the mutex, indicating that its more complex logic adds significant overhead that is not offset by parallelism in read operations.
+\newpage
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.8\textwidth]{{report/graphs/combined_plot.png}}
+\caption{{Combined view across all cases and implementations.}}
+\label{fig:combined}
+\end{figure}
+\section*{Conclusion}
+Results align with expectations: the serial baseline dominates at T=1 (no lock overhead).
+Read-heavy workloads: rwlock outperforms mutex via concurrent readers.
+Write-heavier workloads: rwlock advantage shrinks; both converge due to writer serialization; parallel versions can underperform serial when contention dominates.
+Scaling saturates near core count due to contention and scheduling overhead.
+The $\pm$5% @ 95% CI target was satisfied overall.
+\end{document}

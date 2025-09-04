@@ -3,9 +3,7 @@
 #ifndef TIMING_H
 #define TIMING_H
 
-#include <time.h>
-
-double timespec_elapsed(const struct timespec *start,
-                        const struct timespec *end);
+void time_start(void);
+double time_stop(void);
 
 #endif /* TIMING_H */
