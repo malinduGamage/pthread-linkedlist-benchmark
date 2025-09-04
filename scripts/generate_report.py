@@ -295,14 +295,14 @@ def generate_page2(data, metrics):
             content.append("Data not available for this case.\\\\")
             continue
         table = ["\\begin{table}[h!]", "\\centering", "\\begin{tabular}{cccc}", "\\toprule",
-                 "\\textbf{Threads} & \\textbf{Serial (s)} & \\textbf{Mutex (s)} & \\textbf{RW-lock (s)} \\\\", "\\midrule"]
+                 "\\textbf{Threads} & \\textbf{Serial (µs)} & \\textbf{Mutex (µs)} & \\textbf{RW-lock (µs)} \\\\", "\\midrule"]
         for t in sorted(summary_df['threads'].unique()):
             row = [str(t)]
             for impl in ['serial', 'mutex', 'rwlock']:
                 d = summary_df[(summary_df['implementation'] == impl) & (summary_df['threads'] == t)]
                 if not d.empty:
-                    avg, std = d['average'].iloc[0], d['stddev'].iloc[0]
-                    row.append(f"{fmt(avg, 4)} $\\pm$ {fmt(std, 4)}")
+                    avg, std = d['average'].iloc[0] * 1_000_000, d['stddev'].iloc[0] * 1_000_000
+                    row.append(f"{fmt(avg, 2)} $\\pm$ {fmt(std, 2)}")
                 else:
                     row.append("---")
             table.append(" & ".join(row) + " \\\\")
@@ -336,7 +336,7 @@ def generate_case_analysis_section(case_num, metrics):
         return "\n".join(content)
     analysis = [
         "\\paragraph{Analysis}",
-        f"As shown in Table~\\ref{{tab:case{case_num}}} and Figure~\\ref{{fig:case{case_num}}}, at 1 thread, serial is fastest ({fmt(m['s1_avg'], 4)}s) vs mutex ({fmt(m['m1_avg'], 4)}s) and rw-lock ({fmt(m['r1_avg'], 4)}s).",
+        f"As shown in Table~\\ref{{tab:case{case_num}}} and Figure~\\ref{{fig:case{case_num}}}, at 1 thread, serial is fastest ({fmt(m['s1_avg'] * 1_000_000, 2)}µs) vs mutex ({fmt(m['m1_avg'] * 1_000_000, 2)}µs) and rw-lock ({fmt(m['r1_avg'] * 1_000_000, 2)}µs).",
         f"From 1 to 8 threads, mutex changes by {fmt(m['mutex_scaling'])}% and rw-lock by {fmt(m['rwlock_scaling'])}%.",
         f"At 8 threads, rw-lock is {fmt(m['speedup_t8'])}x faster than mutex.",
         workload_insights[case_num-1]

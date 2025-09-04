@@ -29,10 +29,10 @@ def plot_results(summary_csv: str, output_png: str, case_title: str) -> None:
     """
     # Read the data
     df = pd.read_csv(summary_csv)
-    # Ensure numeric types
+    # Ensure numeric types and convert to microseconds
     df['threads'] = df['threads'].astype(int)
-    df['average'] = df['average'].astype(float)
-    df['stddev'] = df['stddev'].astype(float)
+    df['average'] = df['average'].astype(float) * 1_000_000
+    df['stddev'] = df['stddev'].astype(float) * 1_000_000
     # Create the figure and axis
     fig, ax = plt.subplots()
     for impl in df['implementation'].unique():
@@ -42,7 +42,7 @@ def plot_results(summary_csv: str, output_png: str, case_title: str) -> None:
         yerr = sub['stddev']
         ax.errorbar(x, y, yerr=yerr, label=impl, marker='o')
     ax.set_xlabel('Threads')
-    ax.set_ylabel('Time (seconds)')
+    ax.set_ylabel('Time (microseconds)')
     ax.set_title(case_title)
     ax.legend()
     fig.tight_layout()
